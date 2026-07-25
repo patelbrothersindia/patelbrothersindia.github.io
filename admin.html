@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel | Patel Brother's</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#1B4332; --ink-2:#12301F; --paper:#F4F6F5; --card:#FFFFFF;
+    --stamp:#C9A227; --cta:#1B4332; --steel:#7C8B83; --rule:#DCE1DE;
+    --muted:#5B655F; --success:#2E7D4F; --danger:#B23A2E;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);line-height:1.5;}
+  h1,h2,h3{font-weight:700;letter-spacing:-0.01em;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+  :focus-visible{outline:2px solid var(--stamp);outline-offset:2px;}
+
+  /* Login screen */
+  .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem;}
+  .login-box{background:var(--card);border:1.5px solid var(--rule);border-radius:10px;padding:2.2rem 2rem;max-width:380px;width:100%;box-shadow:0 12px 32px rgba(0,0,0,0.08);}
+  .login-box h1{font-size:1.4rem;color:var(--ink);margin-bottom:0.3rem;text-align:center;}
+  .login-box p.sub{color:var(--muted);font-size:0.85rem;text-align:center;margin-bottom:1.6rem;}
+  .field{margin-bottom:1rem;}
+  .field label{display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.35rem;color:var(--ink);}
+  .field input{width:100%;padding:0.7rem;border:1.5px solid var(--rule);border-radius:6px;font-size:0.92rem;}
+  .btn{padding:0.75rem 1.3rem;border-radius:6px;font-weight:700;border:none;font-size:0.9rem;display:inline-flex;align-items:center;gap:0.5rem;justify-content:center;transition:background .15s;}
+  .btn-primary{background:var(--cta);color:#fff;width:100%;}
+  .btn-primary:hover{background:var(--ink-2);}
+  .login-error{color:var(--danger);font-size:0.82rem;margin-top:0.8rem;text-align:center;display:none;}
+
+  /* Admin app */
+  #admin-app{display:none;}
+  .admin-header{background:var(--ink);color:#fff;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50;}
+  .admin-header h1{font-size:1.15rem;}
+  .admin-header .logout-btn{background:rgba(255,255,255,0.12);color:#fff;border:none;padding:0.5rem 1rem;border-radius:5px;font-size:0.82rem;font-weight:600;}
+  .admin-header .logout-btn:hover{background:rgba(255,255,255,0.22);}
+
+  .tabs{display:flex;gap:0.5rem;padding:1rem 1.5rem 0;max-width:1100px;margin:0 auto;}
+  .tab-btn{background:var(--card);border:1.5px solid var(--rule);padding:0.6rem 1.2rem;border-radius:6px 6px 0 0;font-weight:600;font-size:0.88rem;color:var(--muted);border-bottom:none;}
+  .tab-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  .tab-content{max-width:1100px;margin:0 auto;padding:1.5rem;}
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .card-box{background:var(--card);border:1.5px solid var(--rule);border-radius:8px;padding:1.3rem;margin-bottom:1.3rem;}
+  .card-box h2{font-size:1.05rem;margin-bottom:1rem;}
+
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.8rem;margin-bottom:0.9rem;}
+  .form-grid .field{margin-bottom:0;}
+  .form-grid label{font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.3px;}
+  .form-grid input,.form-grid select{width:100%;padding:0.55rem;border:1.5px solid var(--rule);border-radius:5px;font-size:0.85rem;}
+
+  .product-row{border:1.5px solid var(--rule);border-radius:8px;padding:1rem;margin-bottom:0.8rem;}
+  .product-row-actions{display:flex;gap:0.6rem;margin-top:0.7rem;}
+  .btn-save{background:var(--success);color:#fff;padding:0.5rem 1rem;font-size:0.8rem;border-radius:5px;}
+  .btn-save:hover{background:#236640;}
+  .btn-delete{background:var(--card);color:var(--danger);border:1.5px solid var(--danger);padding:0.5rem 1rem;font-size:0.8rem;border-radius:5px;}
+  .btn-delete:hover{background:#FBEAE8;}
+  .btn-add{background:var(--cta);color:#fff;padding:0.65rem 1.4rem;font-size:0.85rem;border-radius:6px;}
+  .btn-add:hover{background:var(--ink-2);}
+
+  .order-card{border:1.5px solid var(--rule);border-radius:8px;padding:1.1rem;margin-bottom:0.9rem;}
+  .order-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.7rem;}
+  .order-name{font-weight:700;font-size:1rem;}
+  .order-meta{font-size:0.78rem;color:var(--muted);}
+  .order-items{background:var(--paper);border-radius:6px;padding:0.7rem 0.9rem;font-size:0.82rem;color:var(--muted);margin-bottom:0.7rem;}
+  .order-items div{padding:0.15rem 0;}
+  .order-total{font-weight:700;color:var(--ink);}
+  .status-select{padding:0.45rem 0.8rem;border-radius:5px;border:1.5px solid var(--rule);font-size:0.82rem;font-weight:600;}
+
+  .empty-msg{color:var(--muted);text-align:center;padding:2rem;font-size:0.9rem;}
+  .toast-wrap{position:fixed;top:1rem;left:50%;transform:translateX(-50%);z-index:400;display:flex;flex-direction:column;gap:0.5rem;width:92%;max-width:380px;}
+  .toast{background:var(--ink);color:#fff;padding:0.75rem 1.1rem;border-radius:6px;font-size:0.84rem;font-weight:600;display:flex;align-items:center;gap:0.6rem;box-shadow:0 10px 26px rgba(0,0,0,0.28);opacity:0;transform:translateY(-14px);transition:all .25s ease;border-left:4px solid var(--stamp);}
+  .toast.show{opacity:1;transform:translateY(0);}
+  .toast.error{border-left-color:var(--danger);}
+
+  @media (max-width:600px){
+    .admin-header h1{font-size:0.95rem;}
+    .tabs{padding:0.8rem 1rem 0;}
+    .tab-content{padding:1rem;}
+  }
+</style>
+</head>
+<body>
+
+  <!-- LOGIN SCREEN -->
+  <div class="login-wrap" id="login-screen">
+    <div class="login-box">
+      <h1>Patel Brother's</h1>
+      <p class="sub">Owner Admin Panel</p>
+      <div class="field">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" placeholder="••••••••">
+      </div>
+      <button class="btn btn-primary" onclick="doLogin()"><i class="fa-solid fa-right-to-bracket"></i> Log In</button>
+      <p class="login-error" id="login-error">Incorrect email or password.</p>
+    </div>
+  </div>
+
+  <!-- ADMIN APP -->
+  <div id="admin-app">
+    <div class="admin-header">
+      <h1><i class="fa-solid fa-store"></i> Patel Brother's — Admin</h1>
+      <button class="logout-btn" onclick="doLogout()"><i class="fa-solid fa-right-from-bracket"></i> Log Out</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-btn-products" onclick="switchTab('products')">Products</button>
+      <button class="tab-btn" id="tab-btn-orders" onclick="switchTab('orders')">Orders</button>
+    </div>
+
+    <div class="tab-content">
+
+      <!-- PRODUCTS PANEL -->
+      <div class="panel active" id="panel-products">
+        <div class="card-box">
+          <h2><i class="fa-solid fa-plus"></i> Add New Product</h2>
+          <div class="form-grid">
+            <div class="field"><label>SKU</label><input type="text" id="new-sku" placeholder="e.g. PLY-004"></div>
+            <div class="field"><label>Name *</label><input type="text" id="new-name" placeholder="Product name"></div>
+            <div class="field"><label>Unit</label><input type="text" id="new-unit" placeholder="e.g. per sheet"></div>
+            <div class="field">
+              <label>Category</label>
+              <select id="new-category">
+                <option value="chemicals">Chemicals</option>
+                <option value="plywood">Plywood & Doors</option>
+                <option value="machinery">Machinery</option>
+                <option value="adhesives">Adhesives</option>
+                <option value="grease">Grease & Lubricants</option>
+                <option value="hardware">Hardware Items</option>
+                <option value="vbelts">V-Belts</option>
+                <option value="saw">Saw Blades & Machine Rolls</option>
+              </select>
+            </div>
+            <div class="field"><label>Retail ₹</label><input type="number" id="new-retail" placeholder="0"></div>
+            <div class="field"><label>Wholesale ₹</label><input type="number" id="new-wholesale" placeholder="0"></div>
+            <div class="field"><label>Wholesale Min Qty</label><input type="number" id="new-minqty" placeholder="10"></div>
+            <div class="field"><label>Quantity in Stock</label><input type="number" id="new-quantity" placeholder="0"></div>
+            <div class="field">
+              <label>Status</label>
+              <select id="new-status">
+                <option value="in_stock">In Stock</option>
+                <option value="sold_out">Sold Out</option>
+                <option value="hidden">Hidden</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-add" onclick="addProduct()"><i class="fa-solid fa-plus"></i> Add Product</button>
+        </div>
+
+        <div class="card-box">
+          <h2><i class="fa-solid fa-boxes-stacked"></i> Your Products</h2>
+          <div id="products-list"><div class="empty-msg">Loading products...</div></div>
+        </div>
+      </div>
+
+      <!-- ORDERS PANEL -->
+      <div class="panel" id="panel-orders">
+        <div class="card-box">
+          <h2><i class="fa-solid fa-receipt"></i> Orders</h2>
+          <div id="orders-list"><div class="empty-msg">Loading orders...</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+  const SUPABASE_URL = 'https://ylvrorlrwtyorovkjwuu.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_vJrZYNOmWBpOfoCq5H6lXw_oBhaRRt4';
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const CATEGORY_LABELS = {
+    chemicals:'Chemicals', plywood:'Plywood & Doors', machinery:'Machinery',
+    adhesives:'Adhesives', grease:'Grease & Lubricants', hardware:'Hardware Items',
+    vbelts:'V-Belts', saw:'Saw Blades & Machine Rolls'
+  };
+
+  function showToast(message, isError){
+    const wrap = document.getElementById('toast-wrap');
+    const el = document.createElement('div');
+    el.className = 'toast' + (isError ? ' error' : '');
+    el.innerHTML = '<i class="fa-solid ' + (isError ? 'fa-triangle-exclamation' : 'fa-circle-check') + '"></i><span>' + message + '</span>';
+    wrap.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2800);
+  }
+
+  // ---------------------------------------
+  // AUTH
+  // ---------------------------------------
+  async function doLogin(){
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+    errEl.style.display = 'none';
+    if(!email || !password){ errEl.textContent = 'Please enter email and password.'; errEl.style.display = 'block'; return; }
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if(error){ errEl.textContent = 'Incorrect email or password.'; errEl.style.display = 'block'; return; }
+    showAdminApp();
+  }
+
+  async function doLogout(){
+    await sb.auth.signOut();
+    document.getElementById('admin-app').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+
+  function showAdminApp(){
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('admin-app').style.display = 'block';
+    loadProducts();
+    loadOrders();
+  }
+
+  async function checkSession(){
+    const { data } = await sb.auth.getSession();
+    if(data.session){ showAdminApp(); }
+  }
+  checkSession();
+
+  // ---------------------------------------
+  // TABS
+  // ---------------------------------------
+  function switchTab(tab){
+    document.getElementById('panel-products').classList.toggle('active', tab === 'products');
+    document.getElementById('panel-orders').classList.toggle('active', tab === 'orders');
+    document.getElementById('tab-btn-products').classList.toggle('active', tab === 'products');
+    document.getElementById('tab-btn-orders').classList.toggle('active', tab === 'orders');
+  }
+
+  // ---------------------------------------
+  // PRODUCTS
+  // ---------------------------------------
+  async function loadProducts(){
+    const list = document.getElementById('products-list');
+    const { data, error } = await sb.from('products').select('*').order('id', { ascending: true });
+    if(error){ list.innerHTML = '<div class="empty-msg">Could not load products.</div>'; return; }
+    if(!data || data.length === 0){ list.innerHTML = '<div class="empty-msg">No products yet. Add your first one above.</div>'; return; }
+    list.innerHTML = data.map(p => `
+      <div class="product-row" data-id="${p.id}">
+        <div class="form-grid">
+          <div class="field"><label>SKU</label><input type="text" value="${p.sku || ''}" id="sku-${p.id}"></div>
+          <div class="field"><label>Name *</label><input type="text" value="${escapeAttr(p.name || '')}" id="name-${p.id}"></div>
+          <div class="field"><label>Unit</label><input type="text" value="${escapeAttr(p.unit || '')}" id="unit-${p.id}"></div>
+          <div class="field">
+            <label>Category</label>
+            <select id="category-${p.id}">
+              ${Object.entries(CATEGORY_LABELS).map(([k,v]) => `<option value="${k}" ${p.category===k?'selected':''}>${v}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field"><label>Retail ₹</label><input type="number" value="${p.retail}" id="retail-${p.id}"></div>
+          <div class="field"><label>Wholesale ₹</label><input type="number" value="${p.wholesale || ''}" id="wholesale-${p.id}"></div>
+          <div class="field"><label>Wholesale Min Qty</label><input type="number" value="${p.min_qty || ''}" id="minqty-${p.id}"></div>
+          <div class="field"><label>Quantity in Stock</label><input type="number" value="${p.quantity || 0}" id="quantity-${p.id}"></div>
+          <div class="field">
+            <label>Status</label>
+            <select id="status-${p.id}">
+              <option value="in_stock" ${p.status==='in_stock'?'selected':''}>In Stock</option>
+              <option value="sold_out" ${p.status==='sold_out'?'selected':''}>Sold Out</option>
+              <option value="hidden" ${p.status==='hidden'?'selected':''}>Hidden</option>
+            </select>
+          </div>
+        </div>
+        <div class="product-row-actions">
+          <button class="btn-save" onclick="saveProduct(${p.id})"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+          <button class="btn-delete" onclick="deleteProduct(${p.id})"><i class="fa-solid fa-trash"></i> Delete</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function escapeAttr(str){
+    return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  }
+
+  async function addProduct(){
+    const name = document.getElementById('new-name').value.trim();
+    if(!name){ showToast('Product name is required', true); return; }
+    const payload = {
+      sku: document.getElementById('new-sku').value.trim(),
+      name: name,
+      unit: document.getElementById('new-unit').value.trim(),
+      category: document.getElementById('new-category').value,
+      retail: parseFloat(document.getElementById('new-retail').value) || 0,
+      wholesale: parseFloat(document.getElementById('new-wholesale').value) || null,
+      min_qty: parseInt(document.getElementById('new-minqty').value) || 9999,
+      quantity: parseInt(document.getElementById('new-quantity').value) || 0,
+      status: document.getElementById('new-status').value
+    };
+    const { error } = await sb.from('products').insert(payload);
+    if(error){ showToast('Could not add product: ' + error.message, true); return; }
+    showToast('Product added');
+    document.getElementById('new-sku').value = '';
+    document.getElementById('new-name').value = '';
+    document.getElementById('new-unit').value = '';
+    document.getElementById('new-retail').value = '';
+    document.getElementById('new-wholesale').value = '';
+    document.getElementById('new-minqty').value = '';
+    document.getElementById('new-quantity').value = '';
+    loadProducts();
+  }
+
+  async function saveProduct(id){
+    const payload = {
+      sku: document.getElementById('sku-' + id).value.trim(),
+      name: document.getElementById('name-' + id).value.trim(),
+      unit: document.getElementById('unit-' + id).value.trim(),
+      category: document.getElementById('category-' + id).value,
+      retail: parseFloat(document.getElementById('retail-' + id).value) || 0,
+      wholesale: parseFloat(document.getElementById('wholesale-' + id).value) || null,
+      min_qty: parseInt(document.getElementById('minqty-' + id).value) || 9999,
+      quantity: parseInt(document.getElementById('quantity-' + id).value) || 0,
+      status: document.getElementById('status-' + id).value
+    };
+    const { error } = await sb.from('products').update(payload).eq('id', id);
+    if(error){ showToast('Could not save: ' + error.message, true); return; }
+    showToast('Saved');
+  }
+
+  async function deleteProduct(id){
+    if(!confirm('Delete this product? This cannot be undone.')) return;
+    const { error } = await sb.from('products').delete().eq('id', id);
+    if(error){ showToast('Could not delete: ' + error.message, true); return; }
+    showToast('Product deleted');
+    loadProducts();
+  }
+
+  // ---------------------------------------
+  // ORDERS
+  // ---------------------------------------
+  async function loadOrders(){
+    const list = document.getElementById('orders-list');
+    const { data, error } = await sb.from('orders').select('*').order('created_at', { ascending: false });
+    if(error){ list.innerHTML = '<div class="empty-msg">Could not load orders.</div>'; return; }
+    if(!data || data.length === 0){ list.innerHTML = '<div class="empty-msg">No orders yet.</div>'; return; }
+    list.innerHTML = data.map(o => {
+      const items = Array.isArray(o.items) ? o.items : [];
+      const itemsHtml = items.map(it => `<div>${it.name} × ${it.qty} — ₹${it.price}</div>`).join('');
+      const date = o.created_at ? new Date(o.created_at).toLocaleString('en-IN') : '';
+      return `
+        <div class="order-card">
+          <div class="order-top">
+            <div>
+              <div class="order-name">${escapeAttr(o.customer_name || 'Unknown')}</div>
+              <div class="order-meta">${escapeAttr(o.phone || '')} · ${date}</div>
+            </div>
+            <select class="status-select" onchange="updateOrderStatus(${o.id}, this.value)">
+              <option value="new" ${o.status==='new'?'selected':''}>New</option>
+              <option value="confirmed" ${o.status==='confirmed'?'selected':''}>Confirmed</option>
+              <option value="delivered" ${o.status==='delivered'?'selected':''}>Delivered</option>
+            </select>
+          </div>
+          <div class="order-items">${itemsHtml || 'No item details'}</div>
+          ${o.address ? '<div class="order-meta" style="margin-bottom:0.5rem;"><i class="fa-solid fa-location-dot"></i> ' + escapeAttr(o.address) + '</div>' : ''}
+          ${o.notes ? '<div class="order-meta" style="margin-bottom:0.5rem;"><i class="fa-solid fa-note-sticky"></i> ' + escapeAttr(o.notes) + '</div>' : ''}
+          <div class="order-total">Total: ₹${(o.subtotal || 0).toLocaleString('en-IN')}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function updateOrderStatus(id, status){
+    const { error } = await sb.from('orders').update({ status }).eq('id', id);
+    if(error){ showToast('Could not update order: ' + error.message, true); return; }
+    showToast('Order status updated');
+  }
+</script>
+</body>
+</html>
