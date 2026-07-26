@@ -42,8 +42,8 @@
   .admin-header .logout-btn{background:rgba(255,255,255,0.12);color:#fff;border:none;padding:0.5rem 1rem;border-radius:5px;font-size:0.82rem;font-weight:600;}
   .admin-header .logout-btn:hover{background:rgba(255,255,255,0.22);}
 
-  .tabs{display:flex;gap:0.5rem;padding:1rem 1.5rem 0;max-width:1100px;margin:0 auto;}
-  .tab-btn{background:var(--card);border:1.5px solid var(--rule);padding:0.6rem 1.2rem;border-radius:6px 6px 0 0;font-weight:600;font-size:0.88rem;color:var(--muted);border-bottom:none;}
+  .tabs{display:flex;gap:0.5rem;padding:1rem 1.5rem 0;max-width:1100px;margin:0 auto;overflow-x:auto;}
+  .tab-btn{background:var(--card);border:1.5px solid var(--rule);padding:0.6rem 1.2rem;border-radius:6px 6px 0 0;font-weight:600;font-size:0.88rem;color:var(--muted);border-bottom:none;white-space:nowrap;}
   .tab-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
 
   .tab-content{max-width:1100px;margin:0 auto;padding:1.5rem;}
@@ -82,6 +82,21 @@
   .toast.show{opacity:1;transform:translateY(0);}
   .toast.error{border-left-color:var(--danger);}
 
+  /* Dashboard */
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-bottom:1.3rem;}
+  .stat-card{background:var(--card);border:1.5px solid var(--rule);border-radius:8px;padding:1.2rem;text-align:center;}
+  .stat-card.warn{border-color:#E8A93A;background:#FFF8EA;}
+  .stat-card.danger{border-color:var(--danger);background:#FBEAE8;}
+  .stat-number{font-size:1.7rem;font-weight:800;color:var(--ink);}
+  .stat-card.warn .stat-number{color:#B8860B;}
+  .stat-card.danger .stat-number{color:var(--danger);}
+  .stat-label{font-size:0.75rem;color:var(--muted);margin-top:0.2rem;text-transform:uppercase;letter-spacing:0.3px;}
+  .activity-item{display:flex;gap:0.7rem;padding:0.6rem 0;border-bottom:1px solid var(--rule);font-size:0.85rem;}
+  .activity-item:last-child{border-bottom:none;}
+  .activity-item i{color:var(--stamp);margin-top:0.15rem;}
+  .activity-time{color:var(--muted);font-size:0.75rem;}
+  .view-all-link{font-size:0.8rem;color:var(--ink);font-weight:600;text-decoration:underline;cursor:pointer;}
+
   @media (max-width:600px){
     .admin-header h1{font-size:0.95rem;}
     .tabs{padding:0.8rem 1rem 0;}
@@ -117,14 +132,40 @@
     </div>
 
     <div class="tabs">
-      <button class="tab-btn active" id="tab-btn-products" onclick="switchTab('products')">Products</button>
+      <button class="tab-btn active" id="tab-btn-dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+      <button class="tab-btn" id="tab-btn-products" onclick="switchTab('products')">Products</button>
       <button class="tab-btn" id="tab-btn-orders" onclick="switchTab('orders')">Orders</button>
     </div>
 
     <div class="tab-content">
 
+      <!-- DASHBOARD PANEL -->
+      <div class="panel active" id="panel-dashboard">
+        <div class="stat-grid">
+          <div class="stat-card"><div class="stat-number" id="stat-today-orders">–</div><div class="stat-label">Today's Orders</div></div>
+          <div class="stat-card"><div class="stat-number" id="stat-pending-orders">–</div><div class="stat-label">Pending Orders</div></div>
+          <div class="stat-card"><div class="stat-number" id="stat-today-revenue">–</div><div class="stat-label">Today's Revenue</div></div>
+          <div class="stat-card"><div class="stat-number" id="stat-total-products">–</div><div class="stat-label">Products</div></div>
+          <div class="stat-card warn"><div class="stat-number" id="stat-low-stock">–</div><div class="stat-label">Low Stock</div></div>
+          <div class="stat-card danger"><div class="stat-number" id="stat-out-of-stock">–</div><div class="stat-label">Out of Stock</div></div>
+        </div>
+
+        <div class="card-box">
+          <h2 style="display:flex;justify-content:space-between;align-items:center;">
+            <span><i class="fa-solid fa-receipt"></i> Recent Orders</span>
+            <span class="view-all-link" onclick="switchTab('orders')">View All →</span>
+          </h2>
+          <div id="dashboard-recent-orders"><div class="empty-msg">Loading...</div></div>
+        </div>
+
+        <div class="card-box">
+          <h2><i class="fa-solid fa-bolt"></i> Recent Activity</h2>
+          <div id="dashboard-activity"><div class="empty-msg">Loading...</div></div>
+        </div>
+      </div>
+
       <!-- PRODUCTS PANEL -->
-      <div class="panel active" id="panel-products">
+      <div class="panel" id="panel-products">
         <div class="card-box">
           <h2><i class="fa-solid fa-plus"></i> Add New Product</h2>
           <div class="form-grid">
@@ -184,6 +225,8 @@
   const SUPABASE_KEY = 'sb_publishable_vJrZYNOmWBpOfoCq5H6lXw_oBhaRRt4';
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  const LOW_STOCK_THRESHOLD = 5;
+
   const CATEGORY_LABELS = {
     chemicals:'Chemicals', plywood:'Plywood & Doors', machinery:'Machinery',
     adhesives:'Adhesives', grease:'Grease & Lubricants', hardware:'Hardware Items',
@@ -198,6 +241,21 @@
     wrap.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
     setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2800);
+  }
+
+  function escapeAttr(str){
+    return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  }
+
+  function timeAgo(dateStr){
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if(mins < 1) return 'just now';
+    if(mins < 60) return mins + ' min ago';
+    const hrs = Math.floor(mins / 60);
+    if(hrs < 24) return hrs + ' hr ago';
+    const days = Math.floor(hrs / 24);
+    return days + ' day' + (days > 1 ? 's' : '') + ' ago';
   }
 
   // ---------------------------------------
@@ -223,6 +281,7 @@
   function showAdminApp(){
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('admin-app').style.display = 'block';
+    loadDashboard();
     loadProducts();
     loadOrders();
   }
@@ -237,10 +296,81 @@
   // TABS
   // ---------------------------------------
   function switchTab(tab){
+    document.getElementById('panel-dashboard').classList.toggle('active', tab === 'dashboard');
     document.getElementById('panel-products').classList.toggle('active', tab === 'products');
     document.getElementById('panel-orders').classList.toggle('active', tab === 'orders');
+    document.getElementById('tab-btn-dashboard').classList.toggle('active', tab === 'dashboard');
     document.getElementById('tab-btn-products').classList.toggle('active', tab === 'products');
     document.getElementById('tab-btn-orders').classList.toggle('active', tab === 'orders');
+    if(tab === 'dashboard') loadDashboard();
+  }
+
+  // ---------------------------------------
+  // DASHBOARD
+  // ---------------------------------------
+  async function loadDashboard(){
+    const [{ data: products, error: pErr }, { data: orders, error: oErr }] = await Promise.all([
+      sb.from('products').select('*'),
+      sb.from('orders').select('*').order('created_at', { ascending: false })
+    ]);
+
+    if(pErr || oErr){
+      showToast('Could not load dashboard data', true);
+      return;
+    }
+
+    const allProducts = products || [];
+    const allOrders = orders || [];
+
+    // Today's boundary
+    const startOfToday = new Date();
+    startOfToday.setHours(0,0,0,0);
+
+    const todaysOrders = allOrders.filter(o => o.created_at && new Date(o.created_at) >= startOfToday);
+    const pendingOrders = allOrders.filter(o => o.status === 'new');
+    const todaysRevenue = todaysOrders.reduce((sum, o) => sum + (Number(o.subtotal) || 0), 0);
+    const lowStock = allProducts.filter(p => p.status !== 'sold_out' && p.quantity > 0 && p.quantity <= LOW_STOCK_THRESHOLD);
+    const outOfStock = allProducts.filter(p => p.status === 'sold_out' || p.quantity === 0);
+
+    document.getElementById('stat-today-orders').textContent = todaysOrders.length;
+    document.getElementById('stat-pending-orders').textContent = pendingOrders.length;
+    document.getElementById('stat-today-revenue').textContent = '₹' + todaysRevenue.toLocaleString('en-IN');
+    document.getElementById('stat-total-products').textContent = allProducts.length;
+    document.getElementById('stat-low-stock').textContent = lowStock.length;
+    document.getElementById('stat-out-of-stock').textContent = outOfStock.length;
+
+    // Recent Orders (last 5)
+    const recentOrdersEl = document.getElementById('dashboard-recent-orders');
+    const recent5 = allOrders.slice(0, 5);
+    if(recent5.length === 0){
+      recentOrdersEl.innerHTML = '<div class="empty-msg">No orders yet.</div>';
+    } else {
+      recentOrdersEl.innerHTML = recent5.map(o => `
+        <div class="activity-item">
+          <i class="fa-solid fa-receipt"></i>
+          <div>
+            <div>${escapeAttr(o.customer_name || 'Unknown')} — ₹${(o.subtotal||0).toLocaleString('en-IN')} <span class="activity-time">(${o.status})</span></div>
+            <div class="activity-time">${o.created_at ? timeAgo(o.created_at) : ''}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Recent Activity (same order data, framed as activity feed)
+    const activityEl = document.getElementById('dashboard-activity');
+    if(allOrders.length === 0){
+      activityEl.innerHTML = '<div class="empty-msg">No recent activity.</div>';
+    } else {
+      activityEl.innerHTML = allOrders.slice(0, 8).map(o => `
+        <div class="activity-item">
+          <i class="fa-solid fa-circle-check"></i>
+          <div>
+            <div>New order placed by <strong>${escapeAttr(o.customer_name || 'a customer')}</strong></div>
+            <div class="activity-time">${o.created_at ? timeAgo(o.created_at) : ''}</div>
+          </div>
+        </div>
+      `).join('');
+    }
   }
 
   // ---------------------------------------
@@ -284,10 +414,6 @@
     `).join('');
   }
 
-  function escapeAttr(str){
-    return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-  }
-
   async function addProduct(){
     const name = document.getElementById('new-name').value.trim();
     if(!name){ showToast('Product name is required', true); return; }
@@ -313,6 +439,7 @@
     document.getElementById('new-minqty').value = '';
     document.getElementById('new-quantity').value = '';
     loadProducts();
+    loadDashboard();
   }
 
   async function saveProduct(id){
@@ -330,6 +457,7 @@
     const { error } = await sb.from('products').update(payload).eq('id', id);
     if(error){ showToast('Could not save: ' + error.message, true); return; }
     showToast('Saved');
+    loadDashboard();
   }
 
   async function deleteProduct(id){
@@ -338,6 +466,7 @@
     if(error){ showToast('Could not delete: ' + error.message, true); return; }
     showToast('Product deleted');
     loadProducts();
+    loadDashboard();
   }
 
   // ---------------------------------------
@@ -378,6 +507,7 @@
     const { error } = await sb.from('orders').update({ status }).eq('id', id);
     if(error){ showToast('Could not update order: ' + error.message, true); return; }
     showToast('Order status updated');
+    loadDashboard();
   }
 </script>
 </body>
