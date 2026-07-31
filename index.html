@@ -610,28 +610,26 @@
   const SHOP_UPI_NAME = "Patel Brothers";
   const SHOP_MAPS_LINK = 'https://goo.gl/maps/Uh3DeggkLruG8pPD8';
 
-  // ========================================
-  // Categories (edit here if you add a new aisle)
-  // ========================================
-  const CATEGORIES = [
-    {id:'chemicals', name:'Chemicals', aisle:'AISLE 01', icon:'fa-flask'},
-    {id:'plywood',   name:'Plywood & Doors', aisle:'AISLE 02', icon:'fa-layer-group'},
-    {id:'machinery', name:'Machinery', aisle:'AISLE 03', icon:'fa-gear'},
-    {id:'adhesives', name:'Adhesives', aisle:'AISLE 04', icon:'fa-droplet'},
-    {id:'grease',    name:'Grease & Lubricants', aisle:'AISLE 05', icon:'fa-oil-can'},
-    {id:'hardware',  name:'Hardware Items', aisle:'AISLE 06', icon:'fa-toolbox'},
-    {id:'vbelts',    name:'V-Belts', aisle:'AISLE 07', icon:'fa-circle-notch'},
-    {id:'saw',       name:'Saw Blades & Machine Rolls', aisle:'AISLE 08', icon:'fa-compact-disc'}
-  ];
-
   // ---------------------------------------
-  // State — products now load live from Supabase (edited via admin.html)
+  // State — categories AND products now load live from Supabase (edited via admin.html)
   // ---------------------------------------
+  let CATEGORIES = [];
   let PRODUCTS = [];
   let cart = [];
   let activeCategory = 'all';
   let searchQuery = '';
   let cardQty = {};
+
+  async function loadCategoriesFromDB(){
+    const { data, error } = await sb.from('categories').select('*').order('sort_order', { ascending: true });
+    if(error || !data){ CATEGORIES = []; return; }
+    CATEGORIES = data.map(c => ({
+      id: c.category_key,
+      name: c.name,
+      aisle: c.aisle || '',
+      icon: c.icon || 'fa-box'
+    }));
+  }
 
   async function loadProductsFromDB(){
     const { data, error } = await sb.from('products').select('*').neq('status', 'hidden').order('id', { ascending: true });
@@ -699,6 +697,11 @@
   // ---------------------------------------
   function renderCategoryGrid(){
     const grid = document.getElementById('category-grid');
+    if(CATEGORIES.length === 0){
+      grid.innerHTML = '<div class="empty-state">No categories yet.</div>';
+      document.getElementById('footer-categories').innerHTML = '';
+      return;
+    }
     grid.innerHTML = CATEGORIES.map(cat => {
       const count = PRODUCTS.filter(p => p.category === cat.id).length;
       return `<div class="tag-card category-card" onclick="filterCategory('${cat.id}')">
@@ -991,11 +994,12 @@
   // Init
   // ---------------------------------------
   async function init(){
-    renderTicker();
     document.getElementById('year').textContent = new Date().getFullYear();
     document.getElementById('contact-whatsapp-link').href = 'https://wa.me/' + SHOP_WHATSAPP + '?text=' + encodeURIComponent('Hi, I have a question about a product.');
 
+    await loadCategoriesFromDB();
     await loadProductsFromDB();
+    renderTicker();
     renderCategoryGrid();
     renderFilterPills();
     renderProducts();
