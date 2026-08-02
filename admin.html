@@ -57,6 +57,8 @@
   .form-grid .field{margin-bottom:0;}
   .form-grid label{font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.3px;}
   .form-grid input,.form-grid select{width:100%;padding:0.55rem;border:1.5px solid var(--rule);border-radius:5px;font-size:0.85rem;}
+  .field-hint{font-size:0.72rem;color:var(--muted);margin-top:0.3rem;}
+  .field-hint a{color:var(--ink);}
 
   .product-row{border:1.5px solid var(--rule);border-radius:8px;padding:1rem;margin-bottom:0.8rem;}
   .product-row-actions{display:flex;gap:0.6rem;margin-top:0.7rem;}
@@ -97,6 +99,13 @@
   .activity-time{color:var(--muted);font-size:0.75rem;}
   .view-all-link{font-size:0.8rem;color:var(--ink);font-weight:600;text-decoration:underline;cursor:pointer;}
 
+  /* Categories */
+  .category-row{border:1.5px solid var(--rule);border-radius:8px;padding:1rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;}
+  .category-row-icon{width:42px;height:42px;border-radius:50%;background:var(--ink);color:var(--stamp);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;}
+  .category-row-fields{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:0.7rem;min-width:260px;}
+  .category-row-fields input{padding:0.5rem;border:1.5px solid var(--rule);border-radius:5px;font-size:0.82rem;width:100%;}
+  .category-row-actions{display:flex;gap:0.5rem;}
+
   @media (max-width:600px){
     .admin-header h1{font-size:0.95rem;}
     .tabs{padding:0.8rem 1rem 0;}
@@ -134,6 +143,7 @@
     <div class="tabs">
       <button class="tab-btn active" id="tab-btn-dashboard" onclick="switchTab('dashboard')">Dashboard</button>
       <button class="tab-btn" id="tab-btn-products" onclick="switchTab('products')">Products</button>
+      <button class="tab-btn" id="tab-btn-categories" onclick="switchTab('categories')">Categories</button>
       <button class="tab-btn" id="tab-btn-orders" onclick="switchTab('orders')">Orders</button>
     </div>
 
@@ -174,16 +184,7 @@
             <div class="field"><label>Unit</label><input type="text" id="new-unit" placeholder="e.g. per sheet"></div>
             <div class="field">
               <label>Category</label>
-              <select id="new-category">
-                <option value="chemicals">Chemicals</option>
-                <option value="plywood">Plywood & Doors</option>
-                <option value="machinery">Machinery</option>
-                <option value="adhesives">Adhesives</option>
-                <option value="grease">Grease & Lubricants</option>
-                <option value="hardware">Hardware Items</option>
-                <option value="vbelts">V-Belts</option>
-                <option value="saw">Saw Blades & Machine Rolls</option>
-              </select>
+              <select id="new-category"></select>
             </div>
             <div class="field"><label>Retail ₹</label><input type="number" id="new-retail" placeholder="0"></div>
             <div class="field"><label>Wholesale ₹</label><input type="number" id="new-wholesale" placeholder="0"></div>
@@ -207,6 +208,27 @@
         </div>
       </div>
 
+      <!-- CATEGORIES PANEL -->
+      <div class="panel" id="panel-categories">
+        <div class="card-box">
+          <h2><i class="fa-solid fa-plus"></i> Add New Category</h2>
+          <div class="form-grid">
+            <div class="field"><label>Category Key</label><input type="text" id="new-cat-key" placeholder="e.g. paint"></div>
+            <div class="field"><label>Display Name *</label><input type="text" id="new-cat-name" placeholder="e.g. Paints & Coatings"></div>
+            <div class="field"><label>Aisle Label</label><input type="text" id="new-cat-aisle" placeholder="e.g. AISLE 09"></div>
+            <div class="field"><label>Icon (Font Awesome class)</label><input type="text" id="new-cat-icon" placeholder="e.g. fa-paint-roller"></div>
+            <div class="field"><label>Sort Order</label><input type="number" id="new-cat-sort" placeholder="9"></div>
+          </div>
+          <p class="field-hint">Category Key must be lowercase, no spaces (e.g. "paint", "electricals") — this links products to this category. Icon names come from <a href="https://fontawesome.com/search?o=r&m=free" target="_blank" rel="noopener">Font Awesome's free icon list</a> — just copy the part after "fa-".</p>
+          <button class="btn btn-add" onclick="addCategory()" style="margin-top:0.9rem;"><i class="fa-solid fa-plus"></i> Add Category</button>
+        </div>
+
+        <div class="card-box">
+          <h2><i class="fa-solid fa-layer-group"></i> Your Categories</h2>
+          <div id="categories-list"><div class="empty-msg">Loading categories...</div></div>
+        </div>
+      </div>
+
       <!-- ORDERS PANEL -->
       <div class="panel" id="panel-orders">
         <div class="card-box">
@@ -227,11 +249,8 @@
 
   const LOW_STOCK_THRESHOLD = 5;
 
-  const CATEGORY_LABELS = {
-    chemicals:'Chemicals', plywood:'Plywood & Doors', machinery:'Machinery',
-    adhesives:'Adhesives', grease:'Grease & Lubricants', hardware:'Hardware Items',
-    vbelts:'V-Belts', saw:'Saw Blades & Machine Rolls'
-  };
+  // Loaded live from the categories table (used to populate all category dropdowns)
+  let CATEGORIES = [];
 
   function showToast(message, isError){
     const wrap = document.getElementById('toast-wrap');
@@ -278,9 +297,10 @@
     document.getElementById('login-screen').style.display = 'flex';
   }
 
-  function showAdminApp(){
+  async function showAdminApp(){
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('admin-app').style.display = 'block';
+    await loadCategories();
     loadDashboard();
     loadProducts();
     loadOrders();
@@ -298,9 +318,11 @@
   function switchTab(tab){
     document.getElementById('panel-dashboard').classList.toggle('active', tab === 'dashboard');
     document.getElementById('panel-products').classList.toggle('active', tab === 'products');
+    document.getElementById('panel-categories').classList.toggle('active', tab === 'categories');
     document.getElementById('panel-orders').classList.toggle('active', tab === 'orders');
     document.getElementById('tab-btn-dashboard').classList.toggle('active', tab === 'dashboard');
     document.getElementById('tab-btn-products').classList.toggle('active', tab === 'products');
+    document.getElementById('tab-btn-categories').classList.toggle('active', tab === 'categories');
     document.getElementById('tab-btn-orders').classList.toggle('active', tab === 'orders');
     if(tab === 'dashboard') loadDashboard();
   }
@@ -322,7 +344,6 @@
     const allProducts = products || [];
     const allOrders = orders || [];
 
-    // Today's boundary
     const startOfToday = new Date();
     startOfToday.setHours(0,0,0,0);
 
@@ -339,7 +360,6 @@
     document.getElementById('stat-low-stock').textContent = lowStock.length;
     document.getElementById('stat-out-of-stock').textContent = outOfStock.length;
 
-    // Recent Orders (last 5)
     const recentOrdersEl = document.getElementById('dashboard-recent-orders');
     const recent5 = allOrders.slice(0, 5);
     if(recent5.length === 0){
@@ -356,7 +376,6 @@
       `).join('');
     }
 
-    // Recent Activity (same order data, framed as activity feed)
     const activityEl = document.getElementById('dashboard-activity');
     if(allOrders.length === 0){
       activityEl.innerHTML = '<div class="empty-msg">No recent activity.</div>';
@@ -371,6 +390,89 @@
         </div>
       `).join('');
     }
+  }
+
+  // ---------------------------------------
+  // CATEGORIES
+  // ---------------------------------------
+  async function loadCategories(){
+    const { data, error } = await sb.from('categories').select('*').order('sort_order', { ascending: true });
+    CATEGORIES = (!error && data) ? data : [];
+    renderCategoryDropdowns();
+    renderCategoriesList();
+  }
+
+  function renderCategoryDropdowns(){
+    const options = CATEGORIES.map(c => `<option value="${c.category_key}">${escapeAttr(c.name)}</option>`).join('');
+    const newCatSelect = document.getElementById('new-category');
+    if(newCatSelect) newCatSelect.innerHTML = options;
+  }
+
+  function renderCategoriesList(){
+    const list = document.getElementById('categories-list');
+    if(!list) return;
+    if(CATEGORIES.length === 0){ list.innerHTML = '<div class="empty-msg">No categories yet. Add your first one above.</div>'; return; }
+    list.innerHTML = CATEGORIES.map(c => `
+      <div class="category-row" data-id="${c.id}">
+        <div class="category-row-icon"><i class="fa-solid ${c.icon || 'fa-box'}"></i></div>
+        <div class="category-row-fields">
+          <input type="text" value="${escapeAttr(c.category_key)}" id="cat-key-${c.id}" placeholder="key">
+          <input type="text" value="${escapeAttr(c.name)}" id="cat-name-${c.id}" placeholder="Display name">
+          <input type="text" value="${escapeAttr(c.aisle || '')}" id="cat-aisle-${c.id}" placeholder="Aisle label">
+          <input type="text" value="${escapeAttr(c.icon || '')}" id="cat-icon-${c.id}" placeholder="fa-icon-name">
+          <input type="number" value="${c.sort_order || 0}" id="cat-sort-${c.id}" placeholder="Sort">
+        </div>
+        <div class="category-row-actions">
+          <button class="btn-save" onclick="saveCategory(${c.id})"><i class="fa-solid fa-floppy-disk"></i></button>
+          <button class="btn-delete" onclick="deleteCategory(${c.id})"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function addCategory(){
+    const key = document.getElementById('new-cat-key').value.trim().toLowerCase().replace(/\s+/g, '-');
+    const name = document.getElementById('new-cat-name').value.trim();
+    if(!key || !name){ showToast('Category key and name are required', true); return; }
+    const payload = {
+      category_key: key,
+      name: name,
+      aisle: document.getElementById('new-cat-aisle').value.trim(),
+      icon: document.getElementById('new-cat-icon').value.trim() || 'fa-box',
+      sort_order: parseInt(document.getElementById('new-cat-sort').value) || (CATEGORIES.length + 1)
+    };
+    const { error } = await sb.from('categories').insert(payload);
+    if(error){ showToast('Could not add category: ' + error.message, true); return; }
+    showToast('Category added');
+    document.getElementById('new-cat-key').value = '';
+    document.getElementById('new-cat-name').value = '';
+    document.getElementById('new-cat-aisle').value = '';
+    document.getElementById('new-cat-icon').value = '';
+    document.getElementById('new-cat-sort').value = '';
+    await loadCategories();
+  }
+
+  async function saveCategory(id){
+    const payload = {
+      category_key: document.getElementById('cat-key-' + id).value.trim().toLowerCase().replace(/\s+/g, '-'),
+      name: document.getElementById('cat-name-' + id).value.trim(),
+      aisle: document.getElementById('cat-aisle-' + id).value.trim(),
+      icon: document.getElementById('cat-icon-' + id).value.trim() || 'fa-box',
+      sort_order: parseInt(document.getElementById('cat-sort-' + id).value) || 0
+    };
+    const { error } = await sb.from('categories').update(payload).eq('id', id);
+    if(error){ showToast('Could not save: ' + error.message, true); return; }
+    showToast('Category saved');
+    await loadCategories();
+    loadProducts();
+  }
+
+  async function deleteCategory(id){
+    if(!confirm('Delete this category? Products already using it will keep their category value, but it will disappear from the site until reassigned.')) return;
+    const { error } = await sb.from('categories').delete().eq('id', id);
+    if(error){ showToast('Could not delete: ' + error.message, true); return; }
+    showToast('Category deleted');
+    await loadCategories();
   }
 
   // ---------------------------------------
@@ -390,7 +492,7 @@
           <div class="field">
             <label>Category</label>
             <select id="category-${p.id}">
-              ${Object.entries(CATEGORY_LABELS).map(([k,v]) => `<option value="${k}" ${p.category===k?'selected':''}>${v}</option>`).join('')}
+              ${CATEGORIES.map(c => `<option value="${c.category_key}" ${p.category===c.category_key?'selected':''}>${escapeAttr(c.name)}</option>`).join('')}
             </select>
           </div>
           <div class="field"><label>Retail ₹</label><input type="number" value="${p.retail}" id="retail-${p.id}"></div>
